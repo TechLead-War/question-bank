@@ -29,7 +29,7 @@ def handler(message):
     res = response_validator(data)
     if not res:  # todo: we are returning true always, is this correct ?
         return True
-    print(res)
+
     # todo: check if the option chose is also correct.
 
     iter = os.getenv("RETRY_COUNT", 2)

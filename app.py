@@ -268,8 +268,7 @@ def capture_response_question():
 
 
 def pub_callback(conn, data):
-    print(conn)
-    print(data)
+    pass
 
 
 @app.route('/submit/feedback', methods=['POST'])
