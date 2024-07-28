@@ -12,11 +12,17 @@ import tornado.ioloop
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError, BulkWriteError, WriteError, \
     WriteConcernError, DuplicateKeyError
 
+
 app = Flask(__name__)
 
 # MongoDB setup
 MONGO_DB_URI = os.getenv("MONGO_DB_URI", "mongodb://localhost:27017")
-mongo_client = MongoClient(MONGO_DB_URI)
+mongo_client = MongoClient(
+    MONGO_DB_URI,
+    maxPoolSize=200,
+    minPoolSize=10
+)
+
 db = mongo_client["questionBank"]
 collection = db["questions"]
 answered_collection = db["answered_questions"]
@@ -33,14 +39,20 @@ redis_client = Redis(
 )
 
 # NSQ setup
-NSQ_HOST = os.getenv('NSQ_HOSTS', '127.0.0.1:4150,127.0.0.1:4152,127.0.0.1:4154')  # this should be TCP port
+NSQ_HOST = os.getenv(
+    'NSQ_HOSTS',
+    '127.0.0.1:4150,'
+    '127.0.0.1:4152,'
+    '127.0.0.1:4154'
+)  # this should be TCP port
+
 NSQ_TOPIC = os.getenv('NSQ_TOPIC', '')
 nsq_hosts_list = NSQ_HOST.split(',')
 nsq_writer = nsq.Writer(nsq_hosts_list)
 
+
 # Create a new instance of Tornado's IOLoop
 ioloop = tornado.ioloop.IOLoop.instance()
-
 ioloop_thread = threading.Thread(target=lambda: ioloop.start())
 ioloop_thread.daemon = True
 ioloop_thread.start()
@@ -59,7 +71,7 @@ def get_question():
         except Exception as e:
             return jsonify({"error": str(e)})
 
-        # Check if university_id is provided
+        # Check if username is provided
         if not username:
             return jsonify({'error': 'username not provided'}), 400
 
@@ -96,7 +108,7 @@ def fetch_unanswered_question(username: str, question_limit: int):
                 "status": 409
             }
         # Get a random question that hasn't been answered by this university_id
-        answered_ids = [ObjectId(answered_id) for answered_id in answered_ids]
+        answered_ids = [ObjectId(answered_id.get("question_id")) for answered_id in answered_ids]
         question = collection.find_one(
             {
                 '_id': {'$nin': answered_ids},
@@ -126,22 +138,23 @@ def record_answered_question(username, question_id):
     answered_questions = answered_collection.find_one({'username': username})
     if answered_questions:
         answered_ids = answered_questions['answered_ids']
-        if question_id not in answered_ids:
-            answered_ids.append(
-                question_id
-            )
+        if not any(answer['question_id'] == question_id for answer in answered_ids):
+            answered_ids.append({
+                'question_id': question_id,
+                'timestamp': datetime.utcnow()
+            })
             answered_collection.update_one(
                 {'username': username},
                 {'$set': {'answered_ids': answered_ids}}
             )
-
     else:
-        answered_collection.insert_one(
-            {
-                'username': username,
-                'answered_ids': [question_id]
-            }
-        )
+        answered_collection.insert_one({
+            'username': username,
+            'answered_ids': [{
+                'question_id': question_id,
+                'timestamp': datetime.utcnow()
+            }]
+        })
 
 
 def validate_question(question):
@@ -211,11 +224,10 @@ def capture_response_question():
     # don't process if timestamp says it older than 30 sec.
     request_data = request.get_json()
     username = request_data.get('username')
+
     data = {
-        "data": {
-            "question_id": request_data.get("question_id"),
-            "option": request_data.get("option")
-        }
+        "question_id": request_data.get("question_id"),
+        "option": request_data.get("option")
     }
     timestamp = datetime.utcnow().isoformat()
 
@@ -256,7 +268,8 @@ def capture_response_question():
 
 
 def pub_callback(conn, data):
-    pass
+    print(conn)
+    print(data)
 
 
 @app.route('/submit/feedback', methods=['POST'])
