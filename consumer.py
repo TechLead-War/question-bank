@@ -38,8 +38,7 @@ def handler(message):
             query_interface(f"""update mcq.exam_user set marks = marks + 1 where username ='{data['username']}'""")
             return True
 
-        except Exception as ex:
-            print(ex)
+        except Exception:
             pass
 
 
@@ -105,6 +104,11 @@ def response_validator(data: dict):
             "_id": ObjectId(question_id)
         }
     )
+
+    # handle for invalid answer given
+    answer_id = question.get("answer_id")
+    if answer_id is not None or answer_id != option_id:
+        return True
 
     if question is None or answered_response is None:
         return True
