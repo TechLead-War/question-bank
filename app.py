@@ -103,7 +103,6 @@ def fetch_unanswered_question(username: str, question_limit: int):
     # Fetch a question that the university_id hasn't answered
     try:
         answered_questions = answered_collection.find_one({'username': username})
-        print(answered_questions)
         answered_ids = answered_questions['answered_ids'] if answered_questions else []
 
         if len(answered_ids) >= question_limit:
@@ -119,7 +118,6 @@ def fetch_unanswered_question(username: str, question_limit: int):
                 'test_id': username.split('_')[0] + '_'
             }
         )
-        print(question)
         if question:
             try:
                 return {
