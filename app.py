@@ -1,3 +1,4 @@
+import hashlib
 import json
 import threading
 from datetime import datetime
@@ -27,7 +28,7 @@ db = mongo_client["questionBank"]
 collection = db["questions"]
 answered_collection = db["answered_questions"]
 feedback_collection = db["feedback_questions"]
-collection.create_index([("question_id", ASCENDING)], unique=True)
+collection.create_index("question_text_hash", unique=True)
 
 
 # Redis setup
@@ -164,8 +165,6 @@ def validate_question(question):
         return False, "Options should have exactly 4 elements."
     if "test_id" not in question or not question["test_id"]:
         return False, "Test_id is missing or empty."
-    if "question_id" not in question or not question["question_id"]:
-        return False, "Test_id is missing or empty."
 
     return True, ""
 
@@ -182,6 +181,11 @@ def add_question():
             is_valid, error_message = validate_question(question)
             if is_valid:
                 try:
+                    long_string = question["question_text"]
+                    hash_object = hashlib.sha256()
+                    hash_object.update(long_string.encode('utf-8'))
+                    question["question_text_hash"] = hash_object.hexdigest()
+
                     result = collection.insert_one(question)
                     question["_id"] = str(question["_id"])
                     successful_inserts.append({
@@ -190,6 +194,7 @@ def add_question():
                     })
 
                 except DuplicateKeyError as e:
+                    print(e)
                     failed_inserts.append({
                         "error": "Question already exists",
                         "status_code": 400
