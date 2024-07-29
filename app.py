@@ -28,7 +28,10 @@ db = mongo_client["questionBank"]
 collection = db["questions"]
 answered_collection = db["answered_questions"]
 feedback_collection = db["feedback_questions"]
-collection.create_index("question_text_hash", unique=True)
+collection.create_index(
+    [("question_text_hash", 1), ("test_id", 1)],
+    unique=True
+)
 
 
 # Redis setup
@@ -78,7 +81,6 @@ def get_question():
 
         # Fetch a question that the university_id hasn't answered
         question = fetch_unanswered_question(username, question_limit)
-
         if question:
             if question.get("error"):
                 return jsonify(question), 409
@@ -101,6 +103,7 @@ def fetch_unanswered_question(username: str, question_limit: int):
     # Fetch a question that the university_id hasn't answered
     try:
         answered_questions = answered_collection.find_one({'username': username})
+        print(answered_questions)
         answered_ids = answered_questions['answered_ids'] if answered_questions else []
 
         if len(answered_ids) >= question_limit:
@@ -116,7 +119,7 @@ def fetch_unanswered_question(username: str, question_limit: int):
                 'test_id': username.split('_')[0] + '_'
             }
         )
-
+        print(question)
         if question:
             try:
                 return {
