@@ -27,10 +27,8 @@ feedback_collection = db["feedback_questions"]
 def handler(message):
     data = json.loads(message.body)
     res = response_validator(data)
-    if not res:  # todo: we are returning true always, is this correct ?
+    if res:
         return True
-
-    # todo: check if the option chose is also correct.
 
     iter = os.getenv("RETRY_COUNT", 2)
     for iterator in range(iter):
@@ -81,6 +79,8 @@ def query_interface(query: str):
 
 
 def response_validator(data: dict):
+    from icecream import ic
+    ic(data)
     """
         Check for valid
         "username",
@@ -89,6 +89,8 @@ def response_validator(data: dict):
         "time delta"
         if the response is in between the allowed limit.
     """
+    # todo: only process if login time is past, because it can be reset.
+    # todo: and process if answered time is less then test end time
 
     username = data.get("username")
     question_id = data["data"].get("question_id")
@@ -104,6 +106,8 @@ def response_validator(data: dict):
             "_id": ObjectId(question_id)
         }
     )
+    if not question:
+        return True
 
     # handle for invalid answer given
     answer_id = question.get("answer_id")
@@ -130,13 +134,15 @@ def response_validator(data: dict):
             time_limit = 100
 
             try:
-                time_limit = query_interface('SELECT time_per_question FROM mcq.exam_exam LIMIT 1;')
+                time_limit = query_interface('SELECT time_per_question, valid_till FROM mcq.exam_exam LIMIT 1;')
 
             except Exception:
                 pass
 
-            if timedelta.total_seconds() > time_limit[0][0]:
+            if timedelta.total_seconds() > time_limit[0][0] and answered_timestamps < time_limit[0][1]:
                 return True
+
+    return True
 
 
 reader = nsq.Reader(

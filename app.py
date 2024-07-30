@@ -315,5 +315,35 @@ def capture_feedback_question():
         }
 
 
+@app.route('/reset/student/answers', methods=['POST'])
+def reset_student_data():
+    try:
+        request_data = request.get_json()
+        username = request_data.get('username')
+
+        if not username:
+            return jsonify({"error": "Username is required"}), 400
+
+        result = answered_collection.delete_one({"username": username})
+
+        if result.deleted_count > 0:
+            return jsonify(
+                {
+                    "message": "Student data reset successfully",
+                    "deleted_count": result.deleted_count
+                }
+            ), 200
+
+        else:
+            return jsonify(
+                {
+                    "message": "No data found for the provided username"
+                }
+            ), 404
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5012, debug=True)
