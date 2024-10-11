@@ -110,24 +110,29 @@ def fetch_unanswered_question(username: str, question_limit: int):
                 "error": "Questions limit reached",
                 "status": 409
             }
-        # Get a random question that hasn't been answered by this university_id
-        answered_ids = [ObjectId(answered_id.get("question_id")) for answered_id in answered_ids]
-        question = collection.find_one(
-            {
-                '_id': {'$nin': answered_ids},
-                'test_id': username.split('_')[0] + '_'
-            }
-        )
-        if question:
-            try:
-                return {
-                    'question_id': str(question['_id']),
-                    'text': question['question_text'],
-                    'options': question['options']
-                }
 
-            except Exception:
-                pass
+        answered_ids = [ObjectId(answered_id.get("question_id")) for answered_id in answered_ids]
+        pipeline = [
+            {
+                '$match': {
+                    '_id': {'$nin': answered_ids},
+                    'test_id': username.split('_')[0] + '_'
+                }
+            },
+            {
+                '$sample': {'size': 1}  # Randomly sample 1 document
+            }
+        ]
+
+        question_cursor = collection.aggregate(pipeline)
+        question = next(question_cursor, None)
+
+        if question:
+            return {
+                'question_id': str(question['_id']),
+                'text': question['question_text'],
+                'options': question['options']
+            }
 
     except KeyError:
         return {}
@@ -233,7 +238,7 @@ def capture_response_question():
 
     data = {
         "question_id": request_data.get("question_id"),
-        "option": request_data.get("option")
+        "option": request_data.get("option_id")
     }
     timestamp = datetime.utcnow().isoformat()
 
